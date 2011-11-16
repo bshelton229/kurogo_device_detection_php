@@ -77,6 +77,10 @@ class KurogoDeviceDetection {
     if ($this->remote_data) {
       return $this->remote_data;
     }
+    $query_string = http_build_query(array(
+      'user-agent' => $this->user_agent,
+      'version' => $this->api_version,
+    ));
     $url = $this->url();
     $ch = curl_init("$url?$query_string");
     curl_setopt($ch, CURLOPT_FAILONERROR, true);
