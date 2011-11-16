@@ -6,6 +6,8 @@ class KurogoDeviceDetection {
   // URLS for test and production
   private $test_url = 'https://modolabs-device-test.appspot.com/api/';
   private $production_url = 'https://modolabs-device.appspot.com/api/';
+  // Remote data instance store
+  private $remote_data = FALSE;
 
   public function __construct($options = array()) {
     // You can set most internal variables by passing keys to the $options array
@@ -32,6 +34,7 @@ class KurogoDeviceDetection {
   }
 
   public function setUserAgent($user_agent) {
+    $this->clear();
     $this->user_agent = $user_agent;
   }
 
@@ -40,6 +43,7 @@ class KurogoDeviceDetection {
   }
 
   public function setApiVersion($api_version) {
+    $this->clear();
     $this->api_version = $api_version;
   }
 
@@ -48,6 +52,7 @@ class KurogoDeviceDetection {
   }
 
   public function setTestMode($test) {
+    $this->clear();
     $this->test = $test ? TRUE : FALSE;
   }
 
@@ -64,6 +69,11 @@ class KurogoDeviceDetection {
    * Get the raw JSON from the remote API url
    */
   private function getRemote() {
+    // Cache the return data
+    if ($this->remote_data) {
+      return $this->remote_data;
+    }
+
     $url = $this->test ? $this->test_url : $this->production_url;
     $query_string = http_build_query(array(
       'user-agent' => $this->user_agent,
@@ -77,6 +87,14 @@ class KurogoDeviceDetection {
     curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
     $data = curl_exec($ch);
     curl_close($ch);
+    $this->remote_data = $data;
     return $data;
+  }
+
+  /**
+   * Clear the remote_data contents
+   */
+  private function clear() {
+    $this->remote_data = FALSE;
   }
 }
