@@ -1,7 +1,8 @@
 ## Kurogo Device Detection Tools
 
-A very lightweight set of libraries (currently PHP and Ruby) for accessing the
-Kurogo device detection API.
+A small PHP library for accessing the Kurogo device detection service.
+
+http://kurogo.org/docs/mw/current/devicedetection.html
 
 _NOTE: The PHP library will fall back to $_SERVER['HTTP_USER_AGENT'] if no user agent is set_
 
