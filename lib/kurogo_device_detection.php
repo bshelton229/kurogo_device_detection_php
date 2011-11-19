@@ -8,6 +8,7 @@ class KurogoDeviceDetection {
   private $production_url = 'https://modolabs-device.appspot.com/api/';
   // Remote data instance store
   private $remote_data = FALSE;
+  private $caching = FALSE;
 
   public function __construct($options = array()) {
     // You can set most internal variables by passing keys to the $options array
@@ -25,6 +26,10 @@ class KurogoDeviceDetection {
     // Try to set test mode from options, default is FALSE
     if (isset($options['test']) && $options['test']) {
       $this->test = TRUE;
+    }
+    // Try to enable caching
+    if (isset($options['caching'])) {
+      $this->enableCaching($options['caching']);
     }
   }
 
@@ -56,6 +61,24 @@ class KurogoDeviceDetection {
     $this->test = $test ? TRUE : FALSE;
   }
 
+  /**
+   * Attempt to enable disk based caching
+   */
+  public function enableCaching($dir) {
+    $dir = realpath($dir);
+    if (is_dir($dir) && is_writable($dir)) {
+      $this->caching = $dir;
+      return TRUE;
+    }
+    else {
+      $this->caching = FALSE;
+      return FALSE;
+    }
+  }
+
+  /**
+   * Return the Kurogo API url based on mode
+   */
   public function url() {
     return $this->test ? $this->test_url : $this->production_url;
   }
@@ -73,10 +96,17 @@ class KurogoDeviceDetection {
    * Get the raw JSON from the remote API url
    */
   private function getRemote() {
-    // Cache the return data
+    // Return from instance cache if available
     if ($this->remote_data) {
       return $this->remote_data;
     }
+    // Return from $this->caching if available
+    if ($from_cache = $this->fromCache()) {
+      return $from_cache;
+    }
+
+    // If we didn't return from instance of disk cache
+    // pull the remote request
     $query_string = http_build_query(array(
       'user-agent' => $this->user_agent,
       'version' => $this->api_version,
@@ -91,7 +121,46 @@ class KurogoDeviceDetection {
     $data = curl_exec($ch);
     curl_close($ch);
     $this->remote_data = $data;
+    // Cache the remote request if caching is enabled
+    $this->toCache($data);
     return $data;
+  }
+
+  /**
+   * Send data to the disk cache if enabled
+   */
+  private function toCache($data) {
+    if (!$this->caching) { return FALSE; }
+    $write = array(
+      'data' => $data,
+    );
+    $fh = fopen($this->cacheFile(), 'w+');
+    fwrite($fh, serialize($write));
+    fclose($fh);
+  }
+
+  /**
+   * Return data from the disk cache if enabled
+   */
+  private function fromCache() {
+    if (!$this->caching) { return FALSE; }
+    $cache_file = $this->cacheFile();
+    if (is_readable($cache_file)) {
+      $read = unserialize(file_get_contents($cache_file));
+      return $read['data'] ? $read['data'] : FALSE;
+    }
+    else {
+      return FALSE;
+    }
+  }
+
+  /**
+   * Generate the unique caching id
+   */
+  private function cacheFile() {
+    if (!$this->caching) { return FALSE; }
+    $id = md5($this->user_agent . ':::' . $this->api_version);
+    return $this->caching . '/' . $id . '.cache';
   }
 
   /**

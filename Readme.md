@@ -10,6 +10,8 @@ _NOTE: The PHP library will fall back to $_SERVER['HTTP_USER_AGENT'] if no user 
     <?php
       require_once('path_to/kurogo_device_detection.php);
       $kurogo_device = new KurogoDeviceDetection();
+      // If you want disk caching
+      $kurogo_device->enableCaching('/tmp/cache/location');
       $detected = $kurogo_device->detect();
 
       if ($detected->pagetype == "compliant") {
