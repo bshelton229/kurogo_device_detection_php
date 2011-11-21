@@ -102,6 +102,7 @@ class KurogoDeviceDetection {
     }
     // Return from $this->caching if available
     if ($from_cache = $this->fromCache()) {
+      $this->remote_data = $from_cache;
       return $from_cache;
     }
 
@@ -132,6 +133,7 @@ class KurogoDeviceDetection {
   private function toCache($data) {
     if (!$this->caching) { return FALSE; }
     $write = array(
+      'cached' => time(),
       'data' => $data,
     );
     $fh = fopen($this->cacheFile(), 'w+');
