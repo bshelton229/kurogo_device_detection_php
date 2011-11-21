@@ -10,7 +10,13 @@ class KurogoDeviceDetection {
   private $remote_data = FALSE;
   private $caching = FALSE;
   private $cache_expire_min = "7200";
+  private $local_device_file = '';
+  private $detection_mode = 'remote';
 
+  /**
+   * Constructor allows options to be set in an array
+   * on construction
+   */
   public function __construct($options = array()) {
     // You can set most internal variables by passing keys to the $options array
     // Try to set user agent from options of $_SERVER['HTTP_USER_AGENT']
@@ -32,31 +38,57 @@ class KurogoDeviceDetection {
     if (isset($options['caching'])) {
       $this->enableCaching($options['caching']);
     }
+    // Try to set detection mode
+    if (isset($options['detection_mode'])) {
+      $this->setDetectionMode($options['detection_mode']);
+    }
+    // Try to set the local device file
+    if (isset($options['local_device_file'])) {
+      $this->setLocalDeviceFile($options['local_device_file']);
+    }
   }
 
-  // Getters and Setters, self explanatory
+  /**
+   * Return the user_agent instance variable
+   */
   public function getUserAgent() {
     return $this->user_agent;
   }
 
+  /**
+   * Set the user_agent instance variable
+   */
   public function setUserAgent($user_agent) {
     $this->clear();
     $this->user_agent = $user_agent;
   }
 
+  /**
+   * Return the api_version instance variable
+   */
   public function getApiVersion() {
     return $this->api_version;
   }
 
+  /**
+   * Set the api_version instance variable
+   */
   public function setApiVersion($api_version) {
     $this->clear();
     $this->api_version = $api_version;
   }
 
+  /**
+   * Return test mode boolean from the test_mode
+   * instance variable
+   */
   public function testMode() {
     return $this->test_mode;
   }
 
+  /**
+   * Set the test_mode boolean instance variable
+   */
   public function setTestMode($test) {
     $this->clear();
     $this->test = $test ? TRUE : FALSE;
@@ -85,6 +117,51 @@ class KurogoDeviceDetection {
   }
 
   /**
+   * Set the local_device_file instance variable
+   * Make sure the file exists
+   */
+  public function setLocalDeviceFile($file) {
+    $file = realpath($file);
+    if (file_exists($file)) {
+      $this->clear();
+      $this->local_device_file = $file;
+      return $file;
+    }
+    else {
+      return FALE;
+    }
+  }
+
+  /**
+   * Return the local_device_file instance variable
+   */
+  public function getLocalDeviceFile() {
+    return $this->local_device_file;
+  }
+
+  /**
+   * Set the detection_mode instance variable
+   */
+  public function setDetectionMode($mode) {
+    $mode = trim($mode);
+    if (preg_match('/^(local|remote)$/i', $mode)) {
+      $this->clear();
+      $this->detection_mode = strtolower($mode);
+      return $this->detection_mode;
+    }
+    else {
+      return FALSE;
+    }
+  }
+  
+  /**
+   * Return the detection_mode instance variable
+   */
+  public function getDetectionMode() {
+    return $this->detection_mode;
+  }
+
+  /**
    * Return the Kurogo API url based on mode
    */
   public function url() {
@@ -97,7 +174,14 @@ class KurogoDeviceDetection {
    *  Returns an array of the user agent classification or Kurogo default
    */
   public function detect() {
-    return json_decode($this->getRemote());
+    // Determine if we're using local or remote detection
+    if ($this->detection_mode == "remote") {
+      return json_decode($this->getRemote());
+    }
+    else {
+      $local_device = $this->getLocal();
+      return $local_device ? $this->translateDevice($local_device) : FALSE;
+    }
   }
 
   /**
@@ -133,6 +217,111 @@ class KurogoDeviceDetection {
     // Cache the remote request if caching is enabled
     $this->toCache($data);
     return $data;
+  }
+
+  /**
+   * Get Kurogo Detection data from a local deviceDetection.json file
+   * This was mildly adapted straight from Kurogo's lib/DeviceClassifier.php
+   * https://github.com/modolabs/Kurogo-Mobile-Web/blob/master/lib/DeviceClassifier.php
+   */
+  private function getLocal() {
+    if (empty($this->local_device_file) || !file_exists($this->local_device_file)) {
+      return FALSE;
+    }
+    // Set up
+    $get_devices = json_decode(file_get_contents($this->local_device_file), TRUE);
+    $devices = $get_devices['devices'];
+    // Grab user_agent from our instance variable
+    $user_agent = $this->user_agent;
+
+    foreach($devices as $device)
+    {
+        foreach($device['match'] as $match)
+        {
+            if(isset($match['regex']))
+            {
+                $mods = "";
+                if(isset($match['options']))
+                {
+                    if(isset($match['options']['DOT_ALL']) && $match['options']['DOT_ALL'] === true)
+                    {
+                        $mods .= "s";
+                    }
+                    if(isset($match['options']['CASE_INSENSITIVE']) && $match['options']['CASE_INSENSITIVE'] === true)
+                    {
+                        $mods .= "i";
+                    }
+
+                }
+                if(preg_match('/'.str_replace('/', '\\/'.$mods, $match['regex']).'/', $user_agent))
+                {
+                    return $device;
+                }
+            }
+            elseif(isset($match['partial']))
+            {
+                if(isset($match['options']) && isset($match['options']['CASE_INSENSITIVE']) && $match['options']['CASE_INSENSITIVE'] === true)
+                {
+                    if(stripos($user_agent, $match['partial']) !== false)
+                    {
+                        return $device;
+                    }
+                }
+
+                // Case insensitive either isn't set, or is set to false.
+                if(strpos($user_agent, $match['partial']) !== false)
+                {
+                    return $device;
+                }
+            }
+            elseif(isset($match['prefix']))
+            {
+                if(isset($match['options']) && isset($match['options']['CASE_INSENSITIVE']) && $match['options']['CASE_INSENSITIVE'] === true)
+                {
+                    if(stripos($user_agent, $match['partial']) === 0)
+                    {
+                        return $device;
+                    }
+                }
+
+                // Case insensitive either isn't set, or is set to false.
+                if(strpos($user_agent, $match['prefix']) === 0)
+                {
+                    return $device;
+                }
+            }
+            elseif (isset($match['suffix']))
+            {
+                if(isset($match['options']) && isset($match['options']['CASE_INSENSITIVE']) && $match['options']['CASE_INSENSITIVE'] === true)
+                    $case_insens = true;
+                else
+                    $case_insens = false;
+                // Because substr_compare is supposedly designed for this purpose...
+                if(substr_compare($user_agent, $match['partial'], -(strlen($match['partial'])), strlen($match['partial']), $case_insens) === 0)
+                {
+                    return $device;
+                }
+            }
+        }
+
+    }
+    return false;
+  }
+
+  /**
+   * Translate a device from an array returned from
+   * getLocal()
+   *
+   * This was mildly adapted straight from Kurogo's lib/DeviceClassifier.php
+   * https://github.com/modolabs/Kurogo-Mobile-Web/blob/master/lib/DeviceClassifier.php
+   */
+  private function translateDevice($device) {
+    $newDevice = array();
+    $newDevice['supports_certificate'] = $device['classification'][strval($this->api_version)]['supports_certificate'];
+    $newDevice['pagetype'] = $device['classification'][strval($this->api_version)]['pagetype'];
+    $newDevice['description'] = isset($device['description']) ? $device['description'] : '';
+    $newDevice['platform'] = $device['classification'][strval($this->api_version)]['platform'];
+    return (object) $newDevice;
   }
 
   /**
