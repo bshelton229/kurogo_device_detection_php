@@ -9,6 +9,7 @@ class KurogoDeviceDetection {
   // Remote data instance store
   private $remote_data = FALSE;
   private $caching = FALSE;
+  private $cache_expire_min = "7200";
 
   public function __construct($options = array()) {
     // You can set most internal variables by passing keys to the $options array
@@ -59,6 +60,13 @@ class KurogoDeviceDetection {
   public function setTestMode($test) {
     $this->clear();
     $this->test = $test ? TRUE : FALSE;
+  }
+
+  /**
+   * Set the cache expire threshold
+   */
+  public function setCacheExpire($min) {
+    $this->cache_expire_min = intval($min);
   }
 
   /**
@@ -149,7 +157,24 @@ class KurogoDeviceDetection {
     $cache_file = $this->cacheFile();
     if (is_readable($cache_file)) {
       $read = unserialize(file_get_contents($cache_file));
-      return $read['data'] ? $read['data'] : FALSE;
+      // If we read a file that doesn't contain the correct data
+      // remove it and return false
+      if (!isset($read['cached']) || !isset($read['data'])) {
+        unlink($cache_file);
+        return FALSE;
+      }
+      // Check for expiration
+      $cached = $read['cached'];
+      $expires = $read['cached'] + ($this->cache_expire_min * 60);
+
+      // Check for an expired cache file
+      if (time() > $expires) {
+        unlink($cache_file);
+        return FALSE;
+      }
+      else {
+        return $read['data'] ? $read['data'] : FALSE;
+      }
     }
     else {
       return FALSE;
