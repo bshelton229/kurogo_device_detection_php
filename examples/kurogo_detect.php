@@ -17,6 +17,7 @@ $kurogo_detect = new KurogoDeviceDetection(array(
 <body>
 <h3>User Agent: <?php echo $kurogo_detect->getUserAgent(); ?></h3>
 <p><strong>Local Results:</strong></p>
+<h1>Is mobile: <?php echo $kurogo_detect->isMobile() ? "Yes" : "No"; ?></h1>
 <pre>
   <?php print_r($kurogo_detect->detect()); ?>
 </pre>
@@ -28,6 +29,6 @@ $kurogo_detect = new KurogoDeviceDetection(array(
     $kurogo_detect->setDetectionMode('remote');
     print_r($kurogo_detect->detect());
   ?>
-</pre>
+</pre
 </body>
 </html>

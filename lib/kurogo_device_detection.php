@@ -185,6 +185,15 @@ class KurogoDeviceDetection {
   }
 
   /**
+   * Helper method to determine if a user agent is considered mobile
+   * @return {boolean}
+   */
+  public function isMobile() {
+    $detect = $this->detect();
+    return ($detect && $detect->platform != "computer" && $detect->platform != "spider" && $detect->pagetype != "tablet");
+  }
+
+  /**
    * Get the raw JSON from the remote API url
    */
   private function getRemote() {
